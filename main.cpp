@@ -34,7 +34,7 @@ bool check_magic(std::ifstream& input) {
 }
 
 struct pixel {
-	std::uint8_t r, g, b;
+	std::uint_fast8_t r, g, b;
 };
 
 static_assert(sizeof(pixel) == 3);
@@ -74,13 +74,13 @@ int main(int argc, char** argv) {
 
 	//Read dimensions
 
-	int W, H, max_value;
+	std::int_fast32_t W, H, max_value;
 	input >> W >> H >> max_value;
 	assert(W > 0 && H > 0 && max_value == 255);
 	input.ignore(1); //ignore the last newline after header
-	int const width = W, height = H;
+	std::int_fast32_t const width = W, height = H;
 
-	int const size = width * height;
+	std::int_fast32_t const size = width * height;
 
 	std::vector<pixel> pixels(size); //Allocate memory for all pixels
 	input.read(reinterpret_cast<char*>(pixels.data()), size * sizeof(pixel)); //and read them from binary file
@@ -93,13 +93,13 @@ int main(int argc, char** argv) {
 	output_file << header; //Write header to output file 
 	output_file.write(reinterpret_cast<char*>(pixels.data()), width * sizeof(pixel)); //write the first line straight away
 
-	for (int i = width; i > 0;) { //Compute histogram for the first and last line 
+	for (std::int_fast32_t i = width; i > 0;) { //Compute histogram for the first and last line 
 		add_to_histogram(pixels[size - i]);
 		--i;
 		add_to_histogram(pixels[i]);
 	}
 
-	for (int row = 0; row < height - 2; ++row) {
+	for (std::int_fast32_t row = 0; row < height - 2; ++row) {
 		pixel* const previous = pixels.data() + row * width,
 			* const current = previous + width,
 			* const next = current + width;
@@ -110,8 +110,8 @@ int main(int argc, char** argv) {
 
 
 		//Main body of the matrix
-		int remaining = width - 2;
-		for (int col = 1; remaining; ++col, --remaining) {
+		std::int_fast32_t remaining = width - 2;
+		for (std::int_fast32_t col = 1; remaining; ++col, --remaining) {
 
 			uint8_t const red = clamp(5 * current[col].r - current[col - 1].r - current[col + 1].r - previous[col].r - next[col].r);
 			uint8_t const green = clamp(5 * current[col].g - current[col - 1].g - current[col + 1].g - previous[col].g - next[col].g);
