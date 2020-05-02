@@ -76,8 +76,7 @@ int main(int argc, char** argv) {
 
 
 	std::vector<pixel> pixels(height * width);
-	std::vector<pixel> output_buffer;
-	output_buffer.reserve(height * width);
+	std::vector<pixel> output_buffer(height * width);
 	input.read(reinterpret_cast<char*>(pixels.data()), height * width * sizeof(pixel));
 
 	std::vector<pixel*> lines(height);
@@ -87,11 +86,13 @@ int main(int argc, char** argv) {
 
 	std::array<int, 6> histogram{ {0} };
 
+	auto output_iterator = output_buffer.begin();
 	auto const finalize_pixel = [&](pixel const pixel) {
 		uint8_t const grey = greyscale(pixel);
 
 		histogram[grey / 51]++;
-		output_buffer.push_back(pixel);
+		*output_iterator = pixel;
+		++output_iterator;
 	};
 
 	for (int i = 0; i < width; ++i)
