@@ -36,12 +36,6 @@ bool check_magic(std::ifstream& input) {
 struct pixel {
 	std::uint8_t r, g, b;
 };
-std::ostream& operator<<(std::ostream& stream, pixel const p) {
-	return stream << p.r << p.g << p.b;
-}
-std::ostream& print_pixel(std::ostream& stream, pixel const p) {
-	return stream << '[' << +p.r << ", " << +p.g << ", " << +p.b << ']';
-}
 
 static_assert(sizeof(pixel) == 3);
 
@@ -56,6 +50,7 @@ int greyscale(pixel const p) {
 
 int main(int argc, char** argv) {
 
+	std::ios_base::sync_with_stdio(false);
 
 	if (argc != 2) {
 		std::cout << "Incorrect number of arguments.\n";
@@ -79,14 +74,10 @@ int main(int argc, char** argv) {
 	assert(width > 0 && height > 0 && max_value == 255);
 	input.ignore(1); //ignore the last newline after header
 
-	std::ofstream output("output.ppm", std::ios::binary);
-	std::ostringstream output_header;
-
-	output_header << file_magic << '\n' << width << '\n' << height << '\n' << max_value << '\n';
-	std::string const header = output_header.str();
-	output << header;
 
 	std::vector<pixel> pixels(height * width);
+	std::vector<pixel> output_buffer;
+	output_buffer.reserve(height * width);
 	input.read(reinterpret_cast<char*>(pixels.data()), height * width * sizeof(pixel));
 
 	std::vector<pixel*> lines(height);
@@ -100,7 +91,7 @@ int main(int argc, char** argv) {
 		uint8_t const grey = greyscale(pixel);
 
 		histogram[grey / 51]++;
-		output << pixel;
+		output_buffer.push_back(pixel);
 	};
 
 	for (int i = 0; i < width; ++i)
@@ -128,8 +119,15 @@ int main(int argc, char** argv) {
 
 	histogram[4] += histogram[5]; //accounting for the hacky histogram computaion
 
+	std::ostringstream output_header;
+
+	output_header << file_magic << '\n' << width << '\n' << height << '\n' << max_value << '\n';
+	std::string const header = output_header.str();
+	std::ofstream output("output.ppm", std::ios::binary);
+	output << header;
+	output.write(reinterpret_cast<char*>(output_buffer.data()), width * height * sizeof(pixel));
 	std::ofstream histogram_output("output.txt");
-	std::copy(histogram.begin(), histogram.end()-1, std::ostream_iterator<int>(histogram_output, " "));
+	std::copy(histogram.begin(), histogram.end() - 1, std::ostream_iterator<int>(histogram_output, " "));
 
 	return 0;
 
