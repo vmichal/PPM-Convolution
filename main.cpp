@@ -128,7 +128,8 @@ int main(int argc, char** argv) {
 	output << header;
 	output.write(reinterpret_cast<char*>(output_buffer.data()), width * height * sizeof(pixel));
 	std::ofstream histogram_output("output.txt");
-	std::copy(histogram.begin(), histogram.end() - 1, std::ostream_iterator<int>(histogram_output, " "));
+	std::copy(histogram.begin(), histogram.begin() + 4, std::ostream_iterator<int>(histogram_output, " "));
+	histogram_output << histogram[4];
 
 	return 0;
 
