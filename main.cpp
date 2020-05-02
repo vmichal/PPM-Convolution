@@ -43,8 +43,12 @@ constexpr int clamp(int current) {
 	return current > 255 ? 255 : current < 0 ? 0 : current;
 }
 
-constexpr int greyscale(pixel const p) {
-	return std::round(p.r * 0.2126 + p.g * 0.7152 + p.b * 0.0722);
+std::array<int, 6> histogram{ {0} };
+
+void add_to_histogram(pixel const p) {
+	uint8_t const greyscale = std::round(p.r * 0.2126 + p.g * 0.7152 + p.b * 0.0722);
+
+	histogram[greyscale / 51]++;
 }
 
 
@@ -86,39 +90,40 @@ int main(int argc, char** argv) {
 		lines[i] = pixels.data() + width * i;
 
 
-	std::array<int, 6> histogram{ {0} };
 
 	auto output_iterator = output_buffer.begin();
-	auto const finalize_pixel = [&](pixel const pixel) {
-		uint8_t const grey = greyscale(pixel);
 
-		histogram[grey / 51]++;
-		*output_iterator = pixel;
-		++output_iterator;
-	};
-
-	for (int i = 0; i < width; ++i)
-		finalize_pixel(lines[0][i]);
+	for (int i = 0; i < width; ++i) {
+		add_to_histogram(lines[0][i]);
+		*output_iterator++ = lines[0][i];
+	}
 
 	for (int row = 1; row < height - 1; ++row) {
-		finalize_pixel(lines[row][0]);
+		add_to_histogram(lines[row][0]);
+		*output_iterator++ = lines[row][0];
 
 		pixel const* const current = lines[row], * const previous = lines[row - 1], * const next = lines[row + 1];
 
-		for (int col = 1; col < width - 1; ++col) {
+		int col = 1;
+		int remaining = width - 2;
+		for (; remaining; ++col, --remaining) {
 
 			uint8_t const red = clamp(5 * current[col].r - current[col - 1].r - current[col + 1].r - previous[col].r - next[col].r);
 			uint8_t const green = clamp(5 * current[col].g - current[col - 1].g - current[col + 1].g - previous[col].g - next[col].g);
 			uint8_t const blue = clamp(5 * current[col].b - current[col - 1].b - current[col + 1].b - previous[col].b - next[col].b);
 
-			finalize_pixel({ red, green, blue });
+			add_to_histogram({ red, green, blue });
+			*output_iterator++ = { red, green, blue };
 		}
 
-		finalize_pixel(lines[row][width - 1]);
+		add_to_histogram(lines[row][width - 1]);
+		*output_iterator++ = lines[row][width - 1];
 	}
 
-	for (int i = 0; i < width; ++i)
-		finalize_pixel(lines[height - 1][i]);
+	for (int i = 0; i < width; ++i) {
+		add_to_histogram(lines[height - 1][i]);
+		*output_iterator++ = lines[height - 1][i];
+	}
 
 	histogram[4] += histogram[5]; //accounting for the hacky histogram computation
 
