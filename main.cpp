@@ -69,17 +69,18 @@ int main(int argc, char** argv) {
 	}
 
 
-	int width, height, max_value;
-	input >> width >> height >> max_value;
-	assert(width > 0 && height > 0 && max_value == 255);
+	int W, H, max_value;
+	input >> W >> H >> max_value;
+	assert(W > 0 && H > 0 && max_value == 255);
 	input.ignore(1); //ignore the last newline after header
+	int const width = W, height = H;
 
 
 	std::vector<pixel> pixels(height * width);
 	std::vector<pixel> output_buffer(height * width);
 	input.read(reinterpret_cast<char*>(pixels.data()), height * width * sizeof(pixel));
 
-	std::vector<pixel*> lines(height);
+	std::vector<pixel const*> lines(height);
 	for (int i = 0; i < height; ++i)
 		lines[i] = pixels.data() + width * i;
 
