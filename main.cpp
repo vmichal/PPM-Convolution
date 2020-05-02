@@ -72,6 +72,7 @@ int main(int argc, char** argv) {
 		std::getline(input, comment);
 	}
 
+	//Read dimensions
 
 	int W, H, max_value;
 	input >> W >> H >> max_value;
@@ -81,63 +82,59 @@ int main(int argc, char** argv) {
 
 	int const size = width * height;
 
-	std::vector<pixel> pixels(size);
-	std::vector<pixel> output_buffer(size);
-	input.read(reinterpret_cast<char*>(pixels.data()), size * sizeof(pixel));
+	std::vector<pixel> pixels(size); //Allocate memory for all pixels
+	input.read(reinterpret_cast<char*>(pixels.data()), size * sizeof(pixel)); //and read them from binary file
 
-	std::vector<pixel const*> lines(height);
-	for (int i = 0; i < height; ++i)
-		lines[i] = pixels.data() + width * i;
+	std::ostringstream output_header; //Header of output file
+	output_header << file_magic << '\n' << width << '\n' << height << '\n' << max_value << '\n';
+	std::string const header = output_header.str();
 
+	std::ofstream output_file("output.ppm", std::ios::binary);
+	output_file << header; //Write header to output file 
+	output_file.write(reinterpret_cast<char*>(pixels.data()), width * sizeof(pixel)); //write the first line straight away
 
-
-	auto output_iterator = output_buffer.begin();
-
-	for (int i = 0; i < width; ++i) {
-		add_to_histogram(lines[0][i]);
-		*output_iterator++ = lines[0][i];
+	for (int i = width; i > 0;) { //Compute histogram for the first and last line 
+		add_to_histogram(pixels[size - i]);
+		--i;
+		add_to_histogram(pixels[i]);
 	}
 
-	for (int row = 1; row < height - 1; ++row) {
-		add_to_histogram(lines[row][0]);
-		*output_iterator++ = lines[row][0];
+	for (int row = 0; row < height - 2; ++row) {
+		pixel* const previous = pixels.data() + row * width,
+			* const current = previous + width,
+			* const next = current + width;
 
-		pixel const* const current = lines[row], * const previous = lines[row - 1], * const next = lines[row + 1];
+		//first pixel 
+		add_to_histogram(current[0]);
+		previous[0] = current[0];
 
-		int col = 1;
+
+		//Main body of the matrix
 		int remaining = width - 2;
-		for (; remaining; ++col, --remaining) {
+		for (int col = 1; remaining; ++col, --remaining) {
 
 			uint8_t const red = clamp(5 * current[col].r - current[col - 1].r - current[col + 1].r - previous[col].r - next[col].r);
 			uint8_t const green = clamp(5 * current[col].g - current[col - 1].g - current[col + 1].g - previous[col].g - next[col].g);
 			uint8_t const blue = clamp(5 * current[col].b - current[col - 1].b - current[col + 1].b - previous[col].b - next[col].b);
 
 			add_to_histogram({ red, green, blue });
-			*output_iterator++ = { red, green, blue };
+			previous[col] = { red, green, blue };
 		}
 
-		add_to_histogram(lines[row][width - 1]);
-		*output_iterator++ = lines[row][width - 1];
-	}
-
-	for (int i = 0; i < width; ++i) {
-		add_to_histogram(lines[height - 1][i]);
-		*output_iterator++ = lines[height - 1][i];
+		//last pixel
+		add_to_histogram(current[width - 1]);
+		previous[width - 1] = current[width - 1];
 	}
 
 	histogram[4] += histogram[5]; //accounting for the hacky histogram computation
 
-	{
-		std::ostringstream output_header;
-		output_header << file_magic << '\n' << width << '\n' << height << '\n' << max_value << '\n';
-		std::string const header = output_header.str();
+	//write modified inner part of picture
+	output_file.write(reinterpret_cast<char*>(pixels.data()), width * (height - 2) * sizeof(pixel));
 
-		std::ofstream output("output.ppm", std::ios::binary);
-		output << header;
-		output.write(reinterpret_cast<char*>(output_buffer.data()), size * sizeof(pixel));
-	}
+	//write unmodified last line
+	output_file.write(reinterpret_cast<char*>(pixels.data() + width * (height - 1)), width * sizeof(pixel));
 
-	{
+	{ //Print histogram to file
 		std::ofstream histogram_output("output.txt");
 		std::copy(histogram.begin(), histogram.begin() + 4, std::ostream_iterator<int>(histogram_output, " "));
 		histogram_output << histogram[4];
