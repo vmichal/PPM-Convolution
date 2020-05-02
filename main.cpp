@@ -15,6 +15,7 @@
 #include <sstream>
 #include <cmath>
 #include <numeric>
+#include <memory>
 
 constexpr auto file_magic = "P6";
 
@@ -39,15 +40,18 @@ struct pixel {
 
 static_assert(sizeof(pixel) == 3);
 
-constexpr int clamp(int current) {
-	return current > 255 ? 255 : current < 0 ? 0 : current;
+int clamp(int current) {
+	if (current > 255)
+		return 255;
+	if (current < 0)
+		return 0;
+	return current;
 }
 
 std::array<int, 6> histogram{ {0} };
 
-void add_to_histogram(pixel const p) {
+inline void add_to_histogram(pixel const p) {
 	uint8_t const greyscale = std::round(p.r * 0.2126 + p.g * 0.7152 + p.b * 0.0722);
-
 	histogram[greyscale / 51]++;
 }
 
@@ -81,9 +85,11 @@ int main(int argc, char** argv) {
 	std::int_fast32_t const width = W, height = H;
 
 	std::int_fast32_t const size = width * height;
+	std::int_fast32_t const row_size = width * sizeof(pixel);
 
-	std::vector<pixel> pixels(size); //Allocate memory for all pixels
-	input.read(reinterpret_cast<char*>(pixels.data()), size * sizeof(pixel)); //and read them from binary file
+	//Allocate memory for all pixels. Dumb gnu++11 is missing std::make_unique
+	std::unique_ptr<pixel[]> const pixels{ new pixel[size] };
+	input.read(reinterpret_cast<char*>(pixels.get()), size * sizeof(pixel)); //and read them from binary file
 
 	std::ostringstream output_header; //Header of output file
 	output_header << file_magic << '\n' << width << '\n' << height << '\n' << max_value << '\n';
@@ -91,7 +97,7 @@ int main(int argc, char** argv) {
 
 	std::ofstream output_file("output.ppm", std::ios::binary);
 	output_file << header; //Write header to output file 
-	output_file.write(reinterpret_cast<char*>(pixels.data()), width * sizeof(pixel)); //write the first line straight away
+	output_file.write(reinterpret_cast<char*>(pixels.get()), row_size); //write the first line straight away
 
 	for (std::int_fast32_t i = width; i > 0;) { //Compute histogram for the first and last line 
 		add_to_histogram(pixels[size - i]);
@@ -100,7 +106,7 @@ int main(int argc, char** argv) {
 	}
 
 	for (std::int_fast32_t row = 0; row < height - 2; ++row) {
-		pixel* const previous = pixels.data() + row * width,
+		pixel* const previous = pixels.get() + row * width,
 			* const current = previous + width,
 			* const next = current + width;
 
@@ -129,10 +135,10 @@ int main(int argc, char** argv) {
 	histogram[4] += histogram[5]; //accounting for the hacky histogram computation
 
 	//write modified inner part of picture
-	output_file.write(reinterpret_cast<char*>(pixels.data()), width * (height - 2) * sizeof(pixel));
+	output_file.write(reinterpret_cast<char*>(pixels.get()), (height - 2) * row_size);
 
 	//write unmodified last line
-	output_file.write(reinterpret_cast<char*>(pixels.data() + width * (height - 1)), width * sizeof(pixel));
+	output_file.write(reinterpret_cast<char*>(pixels.get() + width * (height - 1)), row_size);
 
 	{ //Print histogram to file
 		std::ofstream histogram_output("output.txt");
